@@ -56,6 +56,15 @@ GEMINI_API_KEY=sua_chave_aqui
 
 **⚠️ OpenAI:** Não recomendado (pago e com quotas)
 
+**🔐 Segurança - Chaves de API**
+
+```bash
+# Verificar se há chaves expostas (antes do commit)
+python check_secrets.py
+
+# O arquivo .env está no .gitignore e é seguro para commit
+```
+
 ### 3. Executar o App
 
 ```bash

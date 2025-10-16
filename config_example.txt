@@ -1,5 +1,5 @@
 # API Keys para Assistentes de IA
-# Copie este arquivo para .env e adicione suas chaves
+# Copie este arquivo para .env e adicione suas chaves reais
 
 # Google Gemini API Key (GRATUITO)
 # Obtenha em: https://makersuite.google.com/app/apikey
@@ -17,4 +17,3 @@ PREFERRED_AI_MODEL=ollama
 # Inicie o servidor e um modelo: `ollama run llama3.1`
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=llama3.1
-

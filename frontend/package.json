@@ -1,0 +1,21 @@
+{
+  "name": "tcc-gado-gordo-frontend",
+  "version": "1.0.0",
+  "description": "React components for Streamlit integration",
+  "private": true,
+  "scripts": {
+    "build:upload": "cd upload_component && npm run build",
+    "build:filter": "cd filter_component && npm run build",
+    "build:all": "npm run build:upload && npm run build:filter",
+    "dev:upload": "cd upload_component && npm run dev",
+    "dev:filter": "cd filter_component && npm run dev"
+  },
+  "workspaces": [
+    "upload_component",
+    "filter_component"
+  ],
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}

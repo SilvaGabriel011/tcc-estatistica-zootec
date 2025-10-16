@@ -1,0 +1,20 @@
+# API Keys para Assistentes de IA
+# Copie este arquivo para .env e adicione suas chaves
+
+# Google Gemini API Key (GRATUITO)
+# Obtenha em: https://makersuite.google.com/app/apikey
+GEMINI_API_KEY=AIzaSyDU5T6ob0LNABe0vyPb0xIDmd3Sm5XPVAg
+
+# OpenAI API Key (PAGO)
+# Obtenha em: https://platform.openai.com/api-keys
+OPENAI_API_KEY=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
+
+# Modelo preferido (ollama, gemini ou openai)
+PREFERRED_AI_MODEL=ollama
+
+# Configuração do Ollama (IA local e gratuita)
+# Baixe em: https://ollama.com/download
+# Inicie o servidor e um modelo: `ollama run llama3.1`
+OLLAMA_BASE_URL=http://localhost:11434
+OLLAMA_MODEL=llama3.1
+

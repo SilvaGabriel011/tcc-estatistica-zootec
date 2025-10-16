@@ -1,0 +1,23 @@
+{
+  "name": "upload-component",
+  "version": "1.0.0",
+  "description": "React upload component with progress bar for Streamlit",
+  "main": "build/index.js",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "streamlit-component-lib": "^2.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@vitejs/plugin-react": "^4.0.0",
+    "vite": "^5.0.0",
+    "typescript": "^5.0.0"
+  }
+}

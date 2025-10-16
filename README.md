@@ -1,4 +1,4 @@
-# 🐂 TCC Gado Gordo 🇧🇷
+# 🐂 Tio ZooEstatisco 🇧🇷
 
 Aplicação completa em Python + Streamlit para análise de dados de mercado de bovinos.  
 **Totalmente em Português Brasileiro** com formatação e termos do agronegócio nacional.

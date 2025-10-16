@@ -1,0 +1,25 @@
+{
+  "build_date": "2025-10-13T19:45:31.451355",
+  "node_version": "v22.18.0",
+  "npm_version": "11.5.2",
+  "components": [
+    {
+      "name": "upload_component",
+      "built": true,
+      "build_path": "frontend/upload_component\\build",
+      "size_kb": 473.45
+    },
+    {
+      "name": "filter_component",
+      "built": true,
+      "build_path": "frontend/filter_component\\build",
+      "size_kb": 475.1
+    },
+    {
+      "name": "chat_component",
+      "built": true,
+      "build_path": "frontend/chat_component\\build",
+      "size_kb": 477.86
+    }
+  ]
+}

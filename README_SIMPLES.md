@@ -154,3 +154,4 @@ pip install openpyxl>=3.0.0
 **Versão**: Simplificada  
 **Status**: ✅ Estável e testada  
 **Próximo passo**: Use com seus dados reais!
+

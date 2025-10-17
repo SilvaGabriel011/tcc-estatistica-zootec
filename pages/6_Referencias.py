@@ -6,7 +6,7 @@ from core.reference_library import (
     search_semantic_scholar, format_abnt_citation, add_semantic_scholar_reference,
     list_local_references, search_local_references, add_local_reference,
     remove_reference, export_references_bibtex, export_references_abnt,
-    get_reference_stats
+    get_reference_stats, clear_api_cache, get_cache_info
 )
 from core.theme_manager import render_theme_selector, init_theme
 from core.notifications import show_toast_success, show_toast_error, show_toast_info, toast_try
@@ -30,6 +30,18 @@ with st.sidebar:
     
     # Renderizar seletor de tema
     render_theme_selector()
+    
+    st.divider()
+    
+    # Cache management
+    st.markdown("### 🗄️ Cache da API")
+    cache_info = get_cache_info()
+    st.caption(f"**Cache:** {cache_info['valid_entries']}/{cache_info['total_entries']} entradas válidas")
+    st.caption(f"**Duração:** {cache_info['cache_duration_hours']:.1f}h")
+    
+    if st.button("🧹 Limpar Cache", help="Remove todas as entradas do cache da API"):
+        clear_api_cache()
+        st.rerun()
     
     st.divider()
 
@@ -80,125 +92,145 @@ with tab1:
                     page='referencias', action='search_semantic_scholar'
                 )
                 
-                if results.get('total', 0) > 0:
-                    papers = results.get('data', [])
-                    st.success(f"Encontrados {len(papers)} artigos!")
+                # Handle fallback to local references
+                if results.get('fallback', False):
+                    st.warning("⚠️ API indisponível. Mostrando referências locais relacionadas:")
+                    local_refs = search_local_references(query)
+                    if local_refs:
+                        for i, ref in enumerate(local_refs[:limit]):
+                            with st.container():
+                                st.markdown("---")
+                                st.subheader(f"{i+1}. {ref.get('title', 'Título não disponível')}")
+                                st.write(f"**Citação ABNT:** {ref.get('citation_abnt', 'N/A')}")
+                                if ref.get('authors'):
+                                    st.write(f"**Autores:** {', '.join(ref.get('authors', []))}")
+                                if ref.get('year'):
+                                    st.write(f"**Ano:** {ref.get('year')}")
+                                if ref.get('tags'):
+                                    st.write(f"**Tags:** {', '.join(ref.get('tags', []))}")
+                    else:
+                        st.info("Nenhuma referência local encontrada para este termo.")
+                else:
+                    # Handle successful API results
+                    if results.get('total', 0) > 0:
+                        papers = results.get('data', [])
+                        st.success(f"Encontrados {len(papers)} artigos!")
                     
-                    for i, paper in enumerate(papers):
-                        with st.container():
-                            # Filtrar por ano se especificado
-                            if paper.get('year', 0) < min_year:
-                                continue
-                            
-                            # Filtrar por citações se especificado
-                            if paper.get('citationCount', 0) < min_citations:
-                                continue
-                            
-                            # Filtrar por área se especificada
-                            if fields:
-                                paper_fields = paper.get('fieldsOfStudy', [])
-                                if not any(field in paper_fields for field in fields):
+                        for i, paper in enumerate(papers):
+                            with st.container():
+                                # Filtrar por ano se especificado
+                                if paper.get('year', 0) < min_year:
                                     continue
-                            
-                            st.markdown("---")
-                            
-                            # Título
-                            st.subheader(f"{i+1}. {paper.get('title', 'Título não disponível')}")
-                            
-                            # Informações básicas
-                            col1, col2, col3 = st.columns([2, 1, 1])
-                            
-                            with col1:
-                                # Autores
-                                authors = paper.get('authors', [])
-                                if authors:
-                                    author_names = [author.get('name', '') for author in authors[:3]]
-                                    if len(authors) > 3:
-                                        author_names.append(f"... e mais {len(authors)-3}")
-                                    st.write(f"**Autores:** {', '.join(author_names)}")
                                 
-                                # Ano e venue
-                                year = paper.get('year', '')
-                                venue = paper.get('venue', '')
-                                if year and venue:
-                                    st.write(f"**Publicado em:** {venue}, {year}")
-                                elif year:
-                                    st.write(f"**Ano:** {year}")
-                            
-                            with col2:
-                                # Citações
-                                citations = paper.get('citationCount', 0)
-                                st.metric("Citações", citations)
-                            
-                            with col3:
-                                # Áreas de estudo
-                                fields_of_study = paper.get('fieldsOfStudy', [])
-                                if fields_of_study:
-                                    st.write(f"**Áreas:** {', '.join(fields_of_study[:2])}")
-                            
-                            # Abstract
-                            abstract = paper.get('abstract', '')
-                            if abstract:
-                                with st.expander("📄 Resumo"):
-                                    st.write(abstract)
-                            
-                            # Ações
-                            col1, col2, col3, col4 = st.columns(4)
-                            
-                            with col1:
-                                if st.button("📚 Adicionar", key=f"add_{i}"):
-                                    try:
-                                        added = toast_try(
-                                            'Adicionar referência',
-                                            add_semantic_scholar_reference,
-                                            paper,
-                                            page='referencias', action='add_semantic_ref'
-                                        )
-                                        if added:
-                                            show_toast_success("Referência adicionada à biblioteca!")
-                                            st.rerun()
-                                        else:
-                                            show_toast_error("Erro ao adicionar referência")
-                                    except Exception:
-                                        pass
-                            
-                            with col2:
-                                # Botão para baixar PDF (se disponível)
-                                pdf_url = paper.get('openAccessPdf', {}).get('url', '') if paper.get('openAccessPdf') else ''
-                                if pdf_url:
-                                    if st.button("📥 Baixar PDF", key=f"pdf_{i}"):
-                                        from core.reference_library import download_pdf
-                                        safe_name = (paper.get('title', 'paper') or 'paper').strip().replace(' ', '_')[:80] + ".pdf"
+                                # Filtrar por citações se especificado
+                                if paper.get('citationCount', 0) < min_citations:
+                                    continue
+                                
+                                # Filtrar por área se especificada
+                                if fields:
+                                    paper_fields = paper.get('fieldsOfStudy', [])
+                                    if not any(field in paper_fields for field in fields):
+                                        continue
+                                
+                                st.markdown("---")
+                                
+                                # Título
+                                st.subheader(f"{i+1}. {paper.get('title', 'Título não disponível')}")
+                                
+                                # Informações básicas
+                                col1, col2, col3 = st.columns([2, 1, 1])
+                                
+                                with col1:
+                                    # Autores
+                                    authors = paper.get('authors', [])
+                                    if authors:
+                                        author_names = [author.get('name', '') for author in authors[:3]]
+                                        if len(authors) > 3:
+                                            author_names.append(f"... e mais {len(authors)-3}")
+                                        st.write(f"**Autores:** {', '.join(author_names)}")
+                                    
+                                    # Ano e venue
+                                    year = paper.get('year', '')
+                                    venue = paper.get('venue', '')
+                                    if year and venue:
+                                        st.write(f"**Publicado em:** {venue}, {year}")
+                                    elif year:
+                                        st.write(f"**Ano:** {year}")
+                                
+                                with col2:
+                                    # Citações
+                                    citations = paper.get('citationCount', 0)
+                                    st.metric("Citações", citations)
+                                
+                                with col3:
+                                    # Áreas de estudo
+                                    fields_of_study = paper.get('fieldsOfStudy', [])
+                                    if fields_of_study:
+                                        st.write(f"**Áreas:** {', '.join(fields_of_study[:2])}")
+                                
+                                # Abstract
+                                abstract = paper.get('abstract', '')
+                                if abstract:
+                                    with st.expander("📄 Resumo"):
+                                        st.write(abstract)
+                                
+                                # Ações
+                                col1, col2, col3, col4 = st.columns(4)
+                                
+                                with col1:
+                                    if st.button("📚 Adicionar", key=f"add_{i}"):
                                         try:
-                                            ok = toast_try(
-                                                'Baixando PDF',
-                                                download_pdf,
-                                                pdf_url,
-                                                safe_name,
-                                                page='referencias', action='download_pdf'
+                                            added = toast_try(
+                                                'Adicionar referência',
+                                                add_semantic_scholar_reference,
+                                                paper,
+                                                page='referencias', action='add_semantic_ref'
                                             )
-                                            if ok:
-                                                show_toast_success(f"PDF salvo em references/{safe_name}")
+                                            if added:
+                                                show_toast_success("Referência adicionada à biblioteca!")
+                                                st.rerun()
                                             else:
-                                                show_toast_error("Não foi possível baixar o PDF")
+                                                show_toast_error("Erro ao adicionar referência")
                                         except Exception:
                                             pass
-                                else:
-                                    st.button("📥 PDF não disponível", disabled=True, key=f"pdf_{i}")
-                            
-                            with col3:
-                                citation = format_abnt_citation(paper)
-                                if st.button("📋 Copiar Citação", key=f"copy_{i}"):
-                                    st.code(citation, language=None)
-                            
-                            with col4:
-                                url = paper.get('url', '')
-                                if url:
-                                    st.link_button("🔗 Ver Original", url)
-                                else:
-                                    st.button("🔗 Link não disponível", disabled=True, key=f"link_{i}")
-                else:
-                    st.warning("Nenhum artigo encontrado. Tente termos diferentes.")
+                                
+                                with col2:
+                                    # Botão para baixar PDF (se disponível)
+                                    pdf_url = paper.get('openAccessPdf', {}).get('url', '') if paper.get('openAccessPdf') else ''
+                                    if pdf_url:
+                                        if st.button("📥 Baixar PDF", key=f"pdf_{i}"):
+                                            from core.reference_library import download_pdf
+                                            safe_name = (paper.get('title', 'paper') or 'paper').strip().replace(' ', '_')[:80] + ".pdf"
+                                            try:
+                                                ok = toast_try(
+                                                    'Baixando PDF',
+                                                    download_pdf,
+                                                    pdf_url,
+                                                    safe_name,
+                                                    page='referencias', action='download_pdf'
+                                                )
+                                                if ok:
+                                                    show_toast_success(f"PDF salvo em references/{safe_name}")
+                                                else:
+                                                    show_toast_error("Não foi possível baixar o PDF")
+                                            except Exception:
+                                                pass
+                                    else:
+                                        st.button("📥 PDF não disponível", disabled=True, key=f"pdf_{i}")
+                                
+                                with col3:
+                                    citation = format_abnt_citation(paper)
+                                    if st.button("📋 Copiar Citação", key=f"copy_{i}"):
+                                        st.code(citation, language=None)
+                                
+                                with col4:
+                                    url = paper.get('url', '')
+                                    if url:
+                                        st.link_button("🔗 Ver Original", url)
+                                    else:
+                                        st.button("🔗 Link não disponível", disabled=True, key=f"link_{i}")
+                    else:
+                        st.warning("Nenhum artigo encontrado. Tente termos diferentes.")
             except Exception:
                 # toast_try already logged and toasted
                 pass

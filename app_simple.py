@@ -296,3 +296,4 @@ st.sidebar.info("""
 Versão Simplificada  
 Análise de dados de bovinos
 """)
+

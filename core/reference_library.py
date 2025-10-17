@@ -2,13 +2,74 @@
 import requests
 import json
 import os
-from datetime import datetime
-from typing import List, Dict
+import time
+from datetime import datetime, timedelta
+from typing import List, Dict, Optional
 import streamlit as st
 
 # Configurações
 REFERENCES_FOLDER = "references"
 REFERENCES_FILE = "references.json"
+
+# Rate limiting configuration
+RATE_LIMIT_DELAY = 1  # seconds between requests
+MAX_RETRIES = 3
+RETRY_DELAY = 2  # seconds to wait before retry
+
+# Cache for API responses
+_api_cache = {}
+_cache_duration = timedelta(hours=1)  # Cache for 1 hour
+
+def _get_cache_key(query: str, limit: int) -> str:
+    """Generate cache key for API request."""
+    return f"semantic_scholar_{hash(query)}_{limit}"
+
+def _is_cache_valid(cache_entry: Dict) -> bool:
+    """Check if cache entry is still valid."""
+    if not cache_entry:
+        return False
+    
+    cached_time = cache_entry.get('timestamp')
+    if not cached_time:
+        return False
+    
+    return datetime.now() - cached_time < _cache_duration
+
+def _get_from_cache(query: str, limit: int) -> Optional[Dict]:
+    """Get cached API response."""
+    cache_key = _get_cache_key(query, limit)
+    cache_entry = _api_cache.get(cache_key)
+    
+    if _is_cache_valid(cache_entry):
+        return cache_entry.get('data')
+    
+    return None
+
+def _save_to_cache(query: str, limit: int, data: Dict):
+    """Save API response to cache."""
+    cache_key = _get_cache_key(query, limit)
+    _api_cache[cache_key] = {
+        'data': data,
+        'timestamp': datetime.now()
+    }
+
+def clear_api_cache():
+    """Clear all cached API responses."""
+    global _api_cache
+    _api_cache.clear()
+    st.info("🧹 Cache da API limpo com sucesso!")
+
+def get_cache_info() -> Dict:
+    """Get information about the current cache state."""
+    valid_entries = sum(1 for entry in _api_cache.values() if _is_cache_valid(entry))
+    total_entries = len(_api_cache)
+    
+    return {
+        'total_entries': total_entries,
+        'valid_entries': valid_entries,
+        'expired_entries': total_entries - valid_entries,
+        'cache_duration_hours': _cache_duration.total_seconds() / 3600
+    }
 
 def ensure_references_folder():
     """Ensure references folder exists."""
@@ -44,25 +105,62 @@ def save_references(references_data):
         return False
 
 def search_semantic_scholar(query: str, limit: int = 10) -> Dict:
-    """Search articles using Semantic Scholar API."""
-    try:
-        url = "https://api.semanticscholar.org/graph/v1/paper/search"
-        params = {
-            'query': query,
-            'limit': limit,
-            'fields': 'title,authors,year,abstract,citationCount,url,openAccessPdf,venue,fieldsOfStudy'
-        }
-        
-        response = requests.get(url, params=params, timeout=10)
-        response.raise_for_status()
-        
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        st.error(f"Erro na API Semantic Scholar: {e}")
-        return {"total": 0, "data": []}
-    except Exception as e:
-        st.error(f"Erro inesperado: {e}")
-        return {"total": 0, "data": []}
+    """Search articles using Semantic Scholar API with rate limiting and caching."""
+    
+    # Check cache first
+    cached_result = _get_from_cache(query, limit)
+    if cached_result:
+        st.info("📚 Resultados obtidos do cache")
+        return cached_result
+    
+    # Rate limiting delay
+    time.sleep(RATE_LIMIT_DELAY)
+    
+    url = "https://api.semanticscholar.org/graph/v1/paper/search"
+    params = {
+        'query': query,
+        'limit': limit,
+        'fields': 'title,authors,year,abstract,citationCount,url,openAccessPdf,venue,fieldsOfStudy'
+    }
+    
+    # Retry logic with exponential backoff
+    for attempt in range(MAX_RETRIES):
+        try:
+            response = requests.get(url, params=params, timeout=10)
+            
+            # Handle rate limiting
+            if response.status_code == 429:
+                wait_time = RETRY_DELAY * (2 ** attempt)  # Exponential backoff
+                st.warning(f"⏳ Rate limit atingido. Aguardando {wait_time}s antes de tentar novamente...")
+                time.sleep(wait_time)
+                continue
+            
+            response.raise_for_status()
+            result = response.json()
+            
+            # Cache successful response
+            _save_to_cache(query, limit, result)
+            
+            return result
+            
+        except requests.exceptions.RequestException as e:
+            if attempt < MAX_RETRIES - 1:
+                wait_time = RETRY_DELAY * (2 ** attempt)
+                st.warning(f"⚠️ Erro na API (tentativa {attempt + 1}/{MAX_RETRIES}): {e}")
+                st.info(f"Tentando novamente em {wait_time}s...")
+                time.sleep(wait_time)
+            else:
+                st.error(f"❌ Erro na API Semantic Scholar após {MAX_RETRIES} tentativas: {e}")
+                st.info("💡 Usando referências locais como alternativa")
+                return {"total": 0, "data": [], "error": str(e), "fallback": True}
+                
+        except Exception as e:
+            st.error(f"❌ Erro inesperado: {e}")
+            st.info("💡 Usando referências locais como alternativa")
+            return {"total": 0, "data": [], "error": str(e), "fallback": True}
+    
+    # If all retries failed
+    return {"total": 0, "data": [], "error": "Max retries exceeded", "fallback": True}
 
 def format_abnt_citation(paper: Dict) -> str:
     """Format citation in ABNT style."""

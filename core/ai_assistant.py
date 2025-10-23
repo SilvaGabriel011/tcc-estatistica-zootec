@@ -39,6 +39,17 @@ except ImportError:
 from .zootecnia_kb import contexto_kb
 from .referencias import contexto_referencias, INSTRUCAO_CITACAO, obter_referencias_cientificas
 
+# Cache para contextos de zootecnia e referências
+@st.cache_data(ttl=3600)
+def _get_zootecnia_context_cached(user_message: str) -> str:
+    """Cache para contexto de zootecnia com TTL de 1 hora."""
+    return _get_zootecnia_context_cached(user_message)
+
+@st.cache_data(ttl=1800)
+def _get_references_context_cached(user_message: str) -> str:
+    """Cache para contexto de referências com TTL de 30 minutos."""
+    return _get_references_context_cached(user_message)
+
 # Cache configuration for AI context
 @st.cache_data(ttl=1800)
 def _hash_dataframe_for_ai(df):
@@ -89,37 +100,74 @@ class AIAssistant:
         self.openai_client = None
         self.ollama_base_url = os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434')
         self.ollama_model = os.getenv('OLLAMA_MODEL', 'llama3.1')
-        self.conversation_history = []  # Track Q&A pairs for context
+        # Histórico será gerenciado pelo session_state para melhor performance
         self._initialize_models()
     
     def _initialize_models(self):
-        """Inicializa modelos com fallbacks."""
+        """Inicializa modelos respeitando preferência para melhor performance."""
         
-        # Tentar OpenAI (mais confiavel)
-        if OPENAI_AVAILABLE and self.openai_api_key:
+        # Testar modelo preferido primeiro
+        if self.preferred_model == 'ollama':
+            if _ollama_is_up(self.ollama_base_url):
+                return  # Ollama está disponível, não precisa testar outros
+        
+        elif self.preferred_model == 'openai':
+            if OPENAI_AVAILABLE and self.openai_api_key:
+                try:
+                    self.openai_client = OpenAI(api_key=self.openai_api_key)
+                    # Teste rápido
+                    list(self.openai_client.models.list().data)
+                    return  # OpenAI funcionando, não precisa testar outros
+                except Exception:
+                    self.openai_client = None
+        
+        elif self.preferred_model == 'gemini':
+            if GEMINI_AVAILABLE and self.gemini_api_key:
+                # Testar apenas alguns modelos mais comuns primeiro
+                models_to_try = [
+                    'gemini-2.0-flash',
+                    'gemini-flash-latest',
+                    'gemini-pro-latest',
+                ]
+                
+                for model_name in models_to_try:
+                    try:
+                        genai.configure(api_key=self.gemini_api_key)
+                        model = genai.GenerativeModel(model_name)
+                        # Teste simples
+                        resp = model.generate_content("Oi")
+                        if resp and resp.text:
+                            self.gemini_model = model
+                            self.gemini_model_name = model_name
+                            return  # Gemini funcionando, não precisa testar outros
+                    except Exception:
+                        continue
+        
+        # Fallback: tentar outros modelos se o preferido não funcionou
+        self._try_fallback_models()
+    
+    def _try_fallback_models(self):
+        """Tenta outros modelos como fallback."""
+        # Tentar OpenAI se não foi o preferido
+        if OPENAI_AVAILABLE and self.openai_api_key and self.openai_client is None:
             try:
                 self.openai_client = OpenAI(api_key=self.openai_api_key)
-                # Teste rapido
                 list(self.openai_client.models.list().data)
             except Exception:
                 self.openai_client = None
         
-        # Tentar Gemini (pode ter problemas de API)
-        if GEMINI_AVAILABLE and self.gemini_api_key:
-            # Lista de modelos para tentar
+        # Tentar Gemini se não foi o preferido
+        if GEMINI_AVAILABLE and self.gemini_api_key and self.gemini_model is None:
             models_to_try = [
                 'gemini-2.5-flash',
                 'gemini-2.0-flash-exp',
-                'gemini-2.0-flash',
                 'gemini-flash-latest',
-                'gemini-pro-latest',
             ]
             
             for model_name in models_to_try:
                 try:
                     genai.configure(api_key=self.gemini_api_key)
                     model = genai.GenerativeModel(model_name)
-                    # Teste simples
                     resp = model.generate_content("Oi")
                     if resp and resp.text:
                         self.gemini_model = model
@@ -207,7 +255,7 @@ OPCOES GRATUITAS:
         
         # Adicionar contexto de Zootecnia
         if use_kb:
-            kb_ctx = contexto_kb(user_message)
+            kb_ctx = _get_zootecnia_context_cached(user_message)
             if kb_ctx:
                 if context:
                     context = context + "\n\n" + kb_ctx
@@ -215,7 +263,7 @@ OPCOES GRATUITAS:
                     context = kb_ctx
         
         # Adicionar referências bibliográficas relevantes
-        refs_ctx = contexto_referencias(user_message, limite=3)
+        refs_ctx = _get_references_context_cached(user_message)
         if refs_ctx:
             if context:
                 context = context + "\n\n" + refs_ctx
@@ -302,24 +350,33 @@ https://platform.openai.com/account/billing
         return "Nenhuma IA respondeu. Instale Ollama: https://ollama.com/download"
     
     def _add_to_conversation_history(self, user_message: str, assistant_response: str):
-        """Add Q&A pair to conversation history."""
-        self.conversation_history.append({
-            'user': user_message,
-            'assistant': assistant_response,
-            'timestamp': time.time()
+        """Add Q&A pair to conversation history in session_state."""
+        if 'chat_history' not in st.session_state:
+            st.session_state['chat_history'] = []
+        
+        # Adicionar mensagem do usuário
+        st.session_state['chat_history'].append({
+            'role': 'user',
+            'content': user_message
         })
         
-        # Keep only last 10 exchanges to avoid context overflow
-        if len(self.conversation_history) > 10:
-            self.conversation_history = self.conversation_history[-10:]
+        # Adicionar resposta do assistente
+        st.session_state['chat_history'].append({
+            'role': 'assistant', 
+            'content': assistant_response
+        })
+        
+        # Keep only last 20 messages (10 exchanges) to avoid context overflow
+        if len(st.session_state['chat_history']) > 20:
+            st.session_state['chat_history'] = st.session_state['chat_history'][-20:]
     
     def clear_conversation(self):
-        """Clear conversation history."""
-        self.conversation_history = []
+        """Clear conversation history from session_state."""
+        st.session_state['chat_history'] = []
     
     def get_conversation_history(self):
-        """Get current conversation history."""
-        return self.conversation_history.copy()
+        """Get current conversation history from session_state."""
+        return st.session_state.get('chat_history', [])
     
     def set_model(self, model_name: str):
         """Set preferred model."""
@@ -374,7 +431,7 @@ https://platform.openai.com/account/billing
         
         # Adicionar contexto de Zootecnia
         if use_kb:
-            kb_ctx = contexto_kb(user_message)
+            kb_ctx = _get_zootecnia_context_cached(user_message)
             if kb_ctx:
                 if context:
                     context = context + "\n\n" + kb_ctx
@@ -382,7 +439,7 @@ https://platform.openai.com/account/billing
                     context = kb_ctx
         
         # Adicionar referências bibliográficas relevantes
-        refs_ctx = contexto_referencias(user_message, limite=3)
+        refs_ctx = _get_references_context_cached(user_message)
         if refs_ctx:
             if context:
                 context = context + "\n\n" + refs_ctx
@@ -533,6 +590,7 @@ https://platform.openai.com/account/billing
         
         return resposta + instrucao_refs
 
+@st.cache_resource
 def get_assistant() -> AIAssistant:
-    """Retorna instancia do assistente."""
+    """Retorna instancia do assistente com cache para melhor performance."""
     return AIAssistant()

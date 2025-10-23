@@ -60,7 +60,7 @@ os.makedirs('static', exist_ok=True)
 # PWA features removidos conforme solicitado
 
 # Página inicial
-st.title("🐂 Tio ZooEstatisco")
+st.title("🐂 Tio ZooEstatístico")
 st.markdown("### Análise Estatística de Dados de Mercado de Bovinos")
 
 # Welcome Modal (First Visit)

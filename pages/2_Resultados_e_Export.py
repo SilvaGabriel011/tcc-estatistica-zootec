@@ -7,8 +7,10 @@ import numpy as np
 from reportlab.lib.pagesizes import A4
 from reportlab.pdfgen import canvas as pdf_canvas
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from core.stats import descriptive_stats
-from core.plots import generate_all_plots
+from core.stats import descriptive_stats, comprehensive_descriptive_analysis, means_ci
+from core.plots import generate_all_plots, create_enhanced_visualizations, get_visualization_recommendations, create_plot_gallery
+from core.chart_exporter import ChartExporter, create_export_interface
+from core.variable_curation import get_dataset_summary, prevent_invalid_calculations
 from core.ai_assistant import get_assistant
 from core.formatters import formatar_moeda, formatar_numero
 from core.excel_export import export_to_excel
@@ -491,6 +493,99 @@ df = st.session_state.get('df_filtered', st.session_state['df_clean'])
 if len(df) < len(st.session_state['df_clean']):
 	st.info(f"🔍 Mostrando {len(df)} registros filtrados de {len(st.session_state['df_clean'])} totais")
 
+# Curadoria de Variáveis
+st.divider()
+st.markdown('### 🔍 Curadoria de Variáveis')
+
+dataset_summary = get_dataset_summary(df)
+
+col_a, col_b = st.columns(2)
+
+with col_a:
+	st.markdown('#### 📋 Tipos de Variáveis')
+	for var, var_type in dataset_summary['variable_types'].items():
+		if var_type == 'quantitative':
+			st.success(f"📊 **{var}**: Quantitativa")
+		elif var_type == 'categorical':
+			st.info(f"🏷️ **{var}**: Categórica")
+		else:
+			st.warning(f"❓ **{var}**: Tipo não identificado")
+
+with col_b:
+	st.markdown('#### 💡 Recomendações de Análise')
+	for var, recommendations in dataset_summary['analysis_recommendations'].items():
+		st.caption(f"**{var}**: {recommendations['primary']}")
+
+# Validação de cálculos
+st.markdown('#### ✅ Validação de Análises')
+validation_result = prevent_invalid_calculations(df, 'mean')
+if validation_result['warnings']:
+	st.warning("⚠️ **Atenção**: Algumas variáveis não devem ter média calculada:")
+	for warning in validation_result['warnings']:
+		st.caption(f"• {warning['column']}: {warning['message']}")
+else:
+	st.success("✅ Todas as variáveis quantitativas podem ter estatísticas descritivas calculadas")
+
+st.divider()
+
+# Visualizações Aprimoradas
+st.markdown('### 🎨 Visualizações Aprimoradas')
+
+# Obter recomendações de visualizações
+viz_recommendations = get_visualization_recommendations(df)
+
+# Mostrar recomendações
+col_viz1, col_viz2, col_viz3, col_viz4 = st.columns(4)
+with col_viz1:
+    st.metric("📊 Básicos", len(viz_recommendations.get('basic', [])))
+with col_viz2:
+    st.metric("🚀 Avançados", len(viz_recommendations.get('advanced', [])))
+with col_viz3:
+    st.metric("🔗 Multivariados", len(viz_recommendations.get('multivariate', [])))
+with col_viz4:
+    st.metric("🌳 Hierárquicos", len(viz_recommendations.get('hierarchical', [])))
+
+# Seletor de tipo de visualização
+viz_type = st.selectbox(
+    "Tipo de Visualização:",
+    ["Todas", "Básicas", "Avançadas", "Multivariadas", "Hierárquicas"],
+    help="Selecione o tipo de visualização para exibir"
+)
+
+# Criar visualizações baseadas na seleção
+if viz_type == "Todas":
+    plot_types = ['heatmap', 'violin_plot', 'scatter_matrix', 'sunburst', 'treemap', '3d_scatter']
+elif viz_type == "Básicas":
+    plot_types = None  # Usar gráficos básicos existentes
+elif viz_type == "Avançadas":
+    plot_types = ['heatmap', 'scatter_matrix', '3d_scatter']
+elif viz_type == "Multivariadas":
+    plot_types = ['violin_plot', 'scatter_matrix']
+elif viz_type == "Hierárquicas":
+    plot_types = ['sunburst', 'treemap']
+else:
+    plot_types = None
+
+# Gerar visualizações
+if plot_types:
+    with st.spinner('Gerando visualizações aprimoradas...'):
+        enhanced_plots = create_enhanced_visualizations(df, plot_types)
+        
+        if enhanced_plots:
+            st.success(f"✅ {len(enhanced_plots)} visualizações aprimoradas geradas!")
+            
+            # Exibir visualizações
+            for plot_name, fig in enhanced_plots.items():
+                if fig:
+                    st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.warning("Nenhuma visualização aprimorada pôde ser gerada para este dataset.")
+else:
+    # Usar visualizações básicas existentes
+    st.info("Exibindo visualizações básicas...")
+
+st.divider()
+
 # Show performance info in sidebar
 with st.sidebar:
 	# Performance info removido
@@ -857,6 +952,26 @@ with st.expander('📉 Gráficos Adicionais (Matplotlib)', expanded=False):
 
 # Export section
 st.divider()
+# Interface de Exportação Aprimorada
+st.markdown('### 📤 Exportação de Gráficos e Dados')
+
+# Criar interface de exportação aprimorada
+try:
+    if 'enhanced_plots' in locals() and enhanced_plots:
+        create_export_interface(enhanced_plots, df)
+    else:
+        # Criar visualizações básicas para exportação
+        basic_plots = generate_all_plots(df)
+        if basic_plots:
+            create_export_interface(basic_plots, df)
+        else:
+            st.info("Nenhum gráfico disponível para exportação")
+except Exception as e:
+    st.error(f"Erro na interface de exportação: {str(e)}")
+    st.info("Usando interface de exportação básica")
+
+st.divider()
+
 st.subheader('📤 Exportar Resultados')
 
 col1, col2, col3 = st.columns(3)
@@ -1017,24 +1132,27 @@ insights = []
 # Insight sobre preços
 if 'PREÇO_POR_KG' in df.columns and 'ESTADO' in df.columns:
     preco_por_estado = df.groupby('ESTADO')['PREÇO_POR_KG'].mean().sort_values(ascending=False)
-    estado_mais_caro = preco_por_estado.index[0]
-    estado_mais_barato = preco_por_estado.index[-1]
-    insights.append(f"**Estado com maior preço:** {estado_mais_caro} (R$ {preco_por_estado.iloc[0]:.2f}/kg)")
-    insights.append(f"**Estado com menor preço:** {estado_mais_barato} (R$ {preco_por_estado.iloc[-1]:.2f}/kg)")
+    if len(preco_por_estado) > 0:
+        estado_mais_caro = preco_por_estado.index[0]
+        estado_mais_barato = preco_por_estado.index[-1]
+        insights.append(f"**Estado com maior preço:** {estado_mais_caro} (R$ {preco_por_estado.iloc[0]:.2f}/kg)")
+        insights.append(f"**Estado com menor preço:** {estado_mais_barato} (R$ {preco_por_estado.iloc[-1]:.2f}/kg)")
 
 # Insight sobre raças
 if 'RAÇA' in df.columns and 'PREÇO_POR_KG' in df.columns:
     preco_por_raca = df.groupby('RAÇA')['PREÇO_POR_KG'].mean().sort_values(ascending=False)
-    raca_mais_cara = preco_por_raca.index[0]
-    insights.append(f"**Raça com maior valor:** {raca_mais_cara} (R$ {preco_por_raca.iloc[0]:.2f}/kg)")
+    if len(preco_por_raca) > 0:
+        raca_mais_cara = preco_por_raca.index[0]
+        insights.append(f"**Raça com maior valor:** {raca_mais_cara} (R$ {preco_por_raca.iloc[0]:.2f}/kg)")
 
 # Insight sobre sazonalidade
 if 'MÊS' in df.columns and 'PREÇO_POR_KG' in df.columns:
     preco_por_mes = df.groupby('MÊS')['PREÇO_POR_KG'].mean().sort_values(ascending=False)
-    mes_mais_caro = preco_por_mes.index[0]
-    mes_mais_barato = preco_por_mes.index[-1]
-    insights.append(f"**Melhor mês para venda:** {mes_mais_caro} (R$ {preco_por_mes.iloc[0]:.2f}/kg)")
-    insights.append(f"**Melhor mês para compra:** {mes_mais_barato} (R$ {preco_por_mes.iloc[-1]:.2f}/kg)")
+    if len(preco_por_mes) > 0:
+        mes_mais_caro = preco_por_mes.index[0]
+        mes_mais_barato = preco_por_mes.index[-1]
+        insights.append(f"**Melhor mês para venda:** {mes_mais_caro} (R$ {preco_por_mes.iloc[0]:.2f}/kg)")
+        insights.append(f"**Melhor mês para compra:** {mes_mais_barato} (R$ {preco_por_mes.iloc[-1]:.2f}/kg)")
 
 # Mostrar insights
 for insight in insights:

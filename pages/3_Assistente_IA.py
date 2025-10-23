@@ -174,14 +174,17 @@ if 'chat_history' not in st.session_state:
 if 'streaming_active' not in st.session_state:
 	st.session_state['streaming_active'] = False
 
-# Display conversation history from AI assistant
+# Display conversation history from session_state
 st.markdown('### 💬 Histórico da Conversa')
 
-if assistant.get_conversation_history():
-	for i, entry in enumerate(assistant.get_conversation_history()):
-		with st.expander(f"Troca {i+1}: {entry['user'][:50]}...", expanded=False):
-			st.markdown(f"**👤 Usuário:** {entry['user']}")
-			st.markdown(f"**🤖 Assistente:** {entry['assistant']}")
+chat_history = assistant.get_conversation_history()
+if chat_history:
+	# Mostrar últimas 10 mensagens
+	recent_history = chat_history[-10:] if len(chat_history) > 10 else chat_history
+	
+	for i, msg in enumerate(recent_history):
+		with st.expander(f"{'👤' if msg['role'] == 'user' else '🤖'} {msg['content'][:50]}...", expanded=False):
+			st.markdown(f"**{'Usuário' if msg['role'] == 'user' else 'Assistente'}:** {msg['content']}")
 			
 			col1, col2 = st.columns(2)
 			with col1:
@@ -189,19 +192,15 @@ if assistant.get_conversation_history():
 					st.write("✅ Copiado para área de transferência!")
 			with col2:
 				if st.button('🗑️ Remover', key=f'remove_{i}'):
-					# Remove this entry from history
-					history = assistant.get_conversation_history()
-					if i < len(history):
-						history.pop(i)
-						assistant.conversation_history = history
+					# Remove this message from history
+					if i < len(chat_history):
+						chat_history.pop(i)
+						st.session_state['chat_history'] = chat_history
 					st.rerun()
 else:
 	st.info("Nenhuma conversa ainda. Faça uma pergunta abaixo!")
 
-# Display Streamlit chat history
-for msg in st.session_state['chat_history']:
-	with st.chat_message(msg['role']):
-		st.markdown(msg['content'])
+# Chat interface principal
 
 # Handle selected question from sidebar
 if 'selected_question' in st.session_state:

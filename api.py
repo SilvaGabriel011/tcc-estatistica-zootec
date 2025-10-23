@@ -3,6 +3,7 @@ API REST para TCC Gado Gordo - Integração com Landing Page V0
 FastAPI backend para consumo pela landing page Next.js
 """
 
+import logging
 from fastapi import FastAPI, File, UploadFile, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
@@ -21,6 +22,17 @@ from core.stats import descriptive_stats, summary_tests
 from core.plots import generate_all_plots
 from core.ai_assistant import get_assistant
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('api.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+
 app = FastAPI(
 	title="TCC Gado Gordo API",
 	description="API REST para análise de dados de mercado de bovinos",
@@ -30,9 +42,14 @@ app = FastAPI(
 # CORS - Permitir requisições da landing page
 app.add_middleware(
 	CORSMiddleware,
-	allow_origins=["*"],  # Em produção, especifique o domínio da landing page
+	allow_origins=[
+		"http://localhost:3000",  # Development frontend
+		"http://localhost:8501",  # Streamlit development
+		"https://yourdomain.com",  # Production domain - UPDATE THIS
+		"https://*.yourdomain.com"  # Subdomains - UPDATE THIS
+	],
 	allow_credentials=True,
-	allow_methods=["*"],
+	allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
 	allow_headers=["*"],
 )
 
@@ -104,8 +121,24 @@ class OptimizedConnectionManager:
                 self.session_data[session_id]["bytes_sent"] += len(message_bytes)
                 self.session_data[session_id]["last_activity"] = datetime.now()
                 
+        except ConnectionResetError as e:
+            logger.warning(f"Connection reset for session {session_id}: {e}")
+            self.disconnect(session_id)
+        except WebSocketDisconnect as e:
+            logger.info(f"WebSocket disconnected for session {session_id}: {e}")
+            self.disconnect(session_id)
+        except json.JSONEncodeError as e:
+            logger.error(f"JSON encoding error for session {session_id}: {e}")
+            # Try to send error message
+            try:
+                await websocket.send_text(json.dumps({
+                    "type": "error",
+                    "message": "Erro na serialização da mensagem"
+                }))
+            except:
+                self.disconnect(session_id)
         except Exception as e:
-            print(f"Erro ao enviar mensagem para {session_id}: {e}")
+            logger.error(f"Unexpected error sending message to {session_id}: {e}")
             # Desconectar se erro persistente
             self.disconnect(session_id)
 
@@ -197,7 +230,7 @@ class OptimizedConnectionManager:
         
         for session_id in inactive_sessions:
             self.disconnect(session_id)
-            print(f"Sessão inativa removida: {session_id}")
+            logger.info(f"Sessão inativa removida: {session_id}")
 
 manager = OptimizedConnectionManager()
 
@@ -237,6 +270,18 @@ async def upload_file(file: UploadFile = File(...), session_id: str = "default")
 		- preview: Primeiras 10 linhas dos dados limpos
 		- session_id: ID da sessão para próximas requisições
 	"""
+	# Input validation
+	if not file.filename:
+		raise HTTPException(status_code=400, detail="Nome do arquivo não fornecido")
+	
+	if not file.filename.lower().endswith(('.csv', '.xlsx')):
+		raise HTTPException(status_code=400, detail="Formato não suportado. Use .csv ou .xlsx")
+	
+	if len(session_id) > 100:
+		raise HTTPException(status_code=400, detail="Session ID muito longo")
+	
+	logger.info(f"Upload iniciado: {file.filename} para sessão {session_id}")
+	
 	try:
 		# Ler arquivo
 		contents = await file.read()
@@ -284,8 +329,14 @@ async def upload_file(file: UploadFile = File(...), session_id: str = "default")
 			"preview": df_clean.head(10).to_dict(orient='records')
 		}
 	
+	except UnicodeDecodeError as e:
+		raise HTTPException(status_code=400, detail=f"Erro de codificação do arquivo: {str(e)}")
+	except pd.errors.ParserError as e:
+		raise HTTPException(status_code=400, detail=f"Erro ao processar arquivo: {str(e)}")
+	except MemoryError as e:
+		raise HTTPException(status_code=413, detail="Arquivo muito grande para processar")
 	except Exception as e:
-		raise HTTPException(status_code=500, detail=str(e))
+		raise HTTPException(status_code=500, detail=f"Erro interno do servidor: {str(e)}")
 
 @app.get("/api/stats/{session_id}")
 async def get_stats(session_id: str = "default"):
@@ -521,13 +572,23 @@ async def websocket_chat(websocket: WebSocket, session_id: str):
 					"type": "error",
 					"message": error_msg
 				})
-				print(f"Erro no WebSocket chat: {e}")
+				logger.error(f"Erro no WebSocket chat: {e}")
 			
-	except WebSocketDisconnect:
-		manager.disconnect(session_id)
-	except Exception as e:
-		print(f"Erro no WebSocket: {e}")
-		manager.disconnect(session_id)
+        except WebSocketDisconnect:
+            logger.info(f"WebSocket disconnected for session {session_id}")
+            manager.disconnect(session_id)
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON decode error in WebSocket {session_id}: {e}")
+            await manager.send_message(session_id, {
+                "type": "error",
+                "message": "Formato de mensagem inválido"
+            })
+        except ConnectionError as e:
+            logger.error(f"Connection error in WebSocket {session_id}: {e}")
+            manager.disconnect(session_id)
+        except Exception as e:
+            logger.error(f"Unexpected error in WebSocket {session_id}: {e}")
+            manager.disconnect(session_id)
 
 @app.get("/api/summary/{session_id}")
 async def get_summary(session_id: str = "default"):

@@ -45,3 +45,4 @@ Se você viu este arquivo porque encontrou chaves expostas:
 3. Configure-as no arquivo `.env` local
 4. Nunca commite o arquivo `.env`
 
+

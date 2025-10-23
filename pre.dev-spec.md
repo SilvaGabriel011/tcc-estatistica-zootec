@@ -1,14 +1,14 @@
 ## Executive Summary
 
-TCC Gado Gordo is a Brazilian Streamlit application for bovine market data analysis. It provides data upload and cleaning, statistical analysis (using SciPy, StatsModels, scikit-learn), interactive Plotly visualizations, Excel/PDF export (OpenPyXL, XlsxWriter, ReportLab), AI assistant integration (Ollama, Google Generative AI/Gemini, OpenAI) with streaming responses, and a reference library via Semantic Scholar. Core modules include AI integration, data cleaning, stats, plots, exports, notifications, theme management, and feature flags. Pages cover upload/analysis, results/export, AI assistant, references, batch analysis, dataset comparison, data quality, and synthetic data generation. The stack uses Streamlit frontend with FastAPI/Uvicorn backend, Redis/Celery for background tasks, and WebSockets for real-time features. Recent issues to address: syntax/indentation errors, DataFrame boolean evaluation errors, import problems, corrupted strings, complex error handling, and general code quality, performance, and UX improvements. Expected outcomes: stable, maintainable codebase; improved performance and error handling; enhanced developer experience and user-facing reliability; and scoped new features marked with inScope flag.
+Aplicação Streamlit "TCC Gado Gordo" para análise de dados de bovinos. Objetivo: tornar a aplicação mais robusta e flexível, com melhor validação e tratamento de dados, suporte a múltiplos formatos (Excel, CSV, Parquet), tratamento de erros aprimorado, expansão de funcionalidades de análise e visualização, e interface mais intuitiva. Tecnologias atuais: Streamlit, Pandas, NumPy, Plotly, SciPy. Entregáveis esperados: upload e validação de dados aprimorados, curadoria e limpeza automatizada, novas visualizações e análises estatísticas, exportações melhoradas, assistente IA refinado. Resultados esperados: maior confiabilidade, usabilidade e suporte a workflows de pesquisa e gestão pecuária, usando pacotes atualizados (ex: pyarrow para Parquet, pandera para validação).
 
 ## Core Functionalities
 
-- **Data Upload & Cleaning**: Upload multiple cattle market datasets, perform memory-optimized cleaning, validation, missing value handling, and preprocessing steps. (Priority: **High**)
-- **Statistical Analysis & Visualizations**: Run statistical tests, outlier detection, and interactive Plotly visualizations with dashboards and comparison tools. (Priority: **High**)
-- **AI Assistant Integration**: Chat interface using Ollama/Gemini/OpenAI for data-aware conversations, streaming responses, model selection, and citation support via reference library. (Priority: **Medium**)
-- **Export & Reporting**: Advanced Excel and PDF export with charts, pivot tables, conditional formatting, and batch export capabilities. (Priority: **Medium**)
-- **Performance, QA & Maintainability**: Improve code quality, error handling, fix syntax/indentation issues, add feature flags, logging, background tasks, and tests for reliability. (Priority: **High**)
+- **Flexible Data Ingestion**: Robust upload system supporting Excel, CSV, Parquet, and JSON with schema inference, type coercion, and file validation using latest pandas and pyarrow. (Priority: **High**)
+- **Data Validation & Cleaning**: Comprehensive validation pipeline with rules, missingness handling, outlier detection, and automated cleaning steps (core/cleaning refactor) using pydantic and pandera for schemas. (Priority: **High**)
+- **Advanced Analytics & Visualizations**: Expanded statistical analyses (descriptive, inferential, ROI calculations) and interactive Plotly visualizations (histograms, boxplots, scatter, correlation matrices) with configurable parameters. (Priority: **High**)
+- **Enhanced Error Handling & UX**: Centralized error handling, user-friendly messages, input hints, improved Streamlit UI flow and guidance, and logging/telemetry for diagnostics. (Priority: **Medium**)
+- **AI Assistant & Export Capabilities**: Improved AI assistant integration for insights and recommendations (using local/lighter LLMs or API) and flexible export options (Excel, CSV, PDF) with latest openpyxl and xlsxwriter. (Priority: **Medium**)
 
 ## Tech Stack
 
@@ -16,20 +16,16 @@ TCC Gado Gordo is a Brazilian Streamlit application for bovine market data analy
 - **Data Processing**: Pandas, NumPy
 - **Data Visualization**: Plotly
 - **Mathematical computations**: SciPy
-- **Analytics**: StatsModels
-- **Machine Learning**: Scikit-learn
-- **Backend**: OpenPyXL, ReportLab, requests
-- **Export**: XlsxWriter
-- **Backend API development**: FastAPI
-- **Server**: Uvicorn
-- **Data Storage**: Redis
-- **Task Management**: Celery
-- **AI Writing Assistance**: Google Generative AI
-- **AI Insights**: OpenAI
-- **HTML Analysis**: Ollama
-- **Real-time communication**: WebSockets
-- **Templating**: Jinja2
-- **Configuration**: python-dotenv
+- **Excel file handling**: openpyxl
+- **Data**: pyarrow
+- **Utility**: python-magic
+- **Validation**: pydantic, Cerberus, Great Expectations
+- **Backend**: loguru, openai, xlsxwriter
+- **Monitoring**: sentry-sdk
+- **Machine Learning**: scikit-learn
+- **Visualization**: seaborn
+- **Linter**: black
+- **Testing**: pytest
 
 ## Development Guidelines & Best Practices
 
@@ -61,328 +57,270 @@ This plan lays out your roadmap in **Milestones**, **Stories** with acceptance c
 
 Tasks are categorized by complexity to guide time estimations: XS, S, M, L, XL, XXL.
 
-### - [ ] **Milestone 1**: **User onboarding & authentication: landing, auth, settings, and role management.**
+### - [ ] **Milestone 1**: **Data ingestion and validation: robust multi-format upload, parsing, and validation of datasets.**
 
-- [ ] **Login Validation** - (S): As a: user, I want to: login with valid credentials, So that: I can access my account securely
+- [ ] **Upload CSV/Excel** - (S): As a: data analyst, I want to: upload CSV/Excel files, So that: I can ingest tabular data for analysis in the platform
   - **Acceptance Criteria:**
-    - [ ] User can login with valid credentials and is redirected to the dashboard
-System rejects invalid credentials with a clear error message
-Session tokens are generated and stored securely
-Login attempt logs are recorded for security monitoring
-- [ ] **Password Reset** - (M): As a: user, I want to: reset my password securely, So that: I can regain access if I forget credentials
+    - [ ] User can upload CSV and Excel files (.csv, .xlsx)
+System validates file MIME types and extension
+Upload supports large files with progress indicator
+System reports error for unsupported formats or corrupted files
+Uploaded data is parsed into a dataframe with correct schema
+- [ ] **Auto-detect Format** - (M): As a: data analyst, I want to: auto-detect data format on upload (delimiters, headers, encoding), So that: I can seamlessly ingest data with minimal user configuration
   - **Acceptance Criteria:**
-    - [ ] User can initiate password reset with registered email
-Reset token sent via email with expiry
-New password adheres to policy and is stored securely
-Audit log records password reset events
-- [ ] **AI Model Selection** - (M): As a: user, I want to: select AI model for assistant interactions, So that: I can balance speed, cost, and quality
+    - [ ] System detects delimiter (comma, semicolon, tab) and header presence automatically
+Detected encoding is reported and applied
+Incorrect or ambiguous formats prompt user confirmation
+Successful ingestion after auto-detection preserves data integrity
+- [ ] **Data Validation Feedback** - (M): As a: data steward, I want to: receive validation feedback on uploaded data (types, missing values, outliers), So that: I can ensure dataset quality before analysis
   - **Acceptance Criteria:**
-    - [ ] User can choose from available models (e.g., GPT-4, GPT-
-    - [ ] 5)
-Selected model persists per session or user
-Model change applies to subsequent AI interactions
-Invalid selection is blocked with user feedback
-Backend routing directs requests to chosen model
-- [ ] **Diagnostic Mode** - (M): As a: admin, I want to: enable diagnostic mode for deeper logging and metrics, So that: I can troubleshoot issues faster
+    - [ ] Validation results show data type inference for each column
+Missing values count per column is displayed
+Outliers flagged using defined thresholds
+Clear actionable feedback is presented to user
+Validation results do not alter original data without user confirmation
+- [ ] **Preview & Curate Columns** - (S): As a: data analyst, I want to: preview columns and curate (rename, reorder, drop) before analysis, So that: I can tailor dataset to modeling needs
   - **Acceptance Criteria:**
-    - [ ] Admin can toggle diagnostic mode
-Diagnostic logs including user actions are captured
-Performance impact minimized
-Logs accessible via secure interface
-Diagnostic mode can be disabled safely
-- [ ] **Data Retention** - (M): As a: admin, I want to: configure data retention policies, So that: we comply with regulations and storage usage is optimized
+    - [ ] Column preview shows name, type, sample values
+User can rename, reorder, or drop columns
+Changes preview in real-time
+Unsaved changes prompt before proceed
+Column metadata persists for downstream steps
+- [ ] **Robust Error Messages** - (S): As a: user, I want to: receive robust, actionable error messages during upload, So that: I can quickly resolve issues and retry
   - **Acceptance Criteria:**
-    - [ ] Policy can be set for retention period by data category
-Policy applied to new and existing data where applicable
-Audit trail for policy changes
-Storage usage reports reflect retention actions
-Policy changes propagate to background cleanup jobs
-- [ ] **Privacy & API Keys** - (L): As a: admin, I want to: manage privacy settings and API keys securely, So that: we protect user data and integrate with external services
+    - [ ] Error messages identify failing step (file, format, data)
+Suggestions for remediation provided
+Error logs accessible to support
+Errors do not corrupt existing dataset or session
+Retry/abort options available
+- [ ] **Support ZIP/JSON** - (L): As a: data engineer, I want to: upload ZIP archives and JSON files, So that: I can ingest compressed datasets and nested data without manual extraction
   - **Acceptance Criteria:**
-    - [ ] API keys stored securely with rotation
-Only authorized admins can view/edit keys
-Privacy policy configurations are exposed to admin
-Audit logs for access to keys
-Keys can be rotated and invalidated
-- [ ] **Notification Preferences** - (S): As a: user, I want to: configure notification channels and thresholds, So that: I receive timely alerts without overload
+    - [ ] ZIP archives are extracted and content presented for ingest
+JSON files parsed with schema inference
+Invalid/archive errors clearly communicated
+Nested structures handled or flattened according to policy
+Original files stored securely for audit trail
+- [ ] **Retry Upload** - (XS): As a: user, I want to: retry an upload after failure, So that: I can recover from transient issues without restarting the process
   - **Acceptance Criteria:**
-    - [ ] User can enable/disable push/email/SMS notifications
-Users can set thresholds for alerts
-Preferences persist across sessions
-Notifications respect user time zones
-System delivers test notification
-- [ ] **Export Settings** - (S): As a: admin, I want to: export settings to a file (CSV/JSON), So that: I can backup and share configuration
-  - **Acceptance Criteria:**
-    - [ ] Admin can export current settings in CSV and JSON
-Export includes all relevant preferences and model choices
-Export respects user permissions
-Export trigger is auditable
-Export file integrity validated on download
-- [ ] **Theme Toggle** - (XS): As a: user, I want to: toggle between light and dark themes, So that: I can customize the UI to my preference
-  - **Acceptance Criteria:**
-    - [ ] User can switch theme via UI toggle
-Theme persists across sessions
-Theme toggle applies to all pages without reload
-Invalid theme input is ignored gracefully
-Theme preference stored securely in local storage or user profile
+    - [ ] Retry button re-uploads the original file
+Upload state resets appropriately on retry
+No data loss on retry
+User is informed of retry outcome (success/failure)
+Failure limits and backoff strategy considered
 
-### - [ ] **Milestone 2**: **Core data ingestion: upload, cleaning, data quality checks, and generator for synthetic data.**
+### - [ ] **Milestone 2**: **Variable curation and data cleaning workflows to prepare datasets for analysis.**
 
-- [ ] **Upload File** - (S): As a: data analyst, I want to: upload a data file (CSV/Excel), So that: I can begin cleaning and analyzing the dataset
+- [ ] **Auto-detect Column Types (inScope:true)** - (S): As a: data scientist, I want to: auto-detect column data types in uploaded datasets, So that: I can establish accurate data types for downstream transformations and analyses
   - **Acceptance Criteria:**
-    - [ ] User can upload CSV and Excel files
-System validates file type and size
-Uploaded data is parsed into a dataframe without errors
-Invalid files produce a clear error message
-Memory footprint is within defined limits
-- [ ] **Data Preview** - (S): As a: data analyst, I want to: preview the uploaded data (head, tail, sample, columns), So that: I can quickly inspect structure and contents
+    - [ ] Dataset uploaded with various column types (numeric, categorical, date) are automatically detected and labeled
+Detection accuracy: non-numeric columns identified correctly with >95% accuracy on test sets
+System handles missing or mixed-type columns gracefully without failing the detection
+Resulting metadata is stored with dataset and reused in subsequent steps
+Performance: column type detection completes within 2 seconds for typical SMB datasets
+- [ ] **Missing Value Suggestions (inScope:true)** - (M): As a: data steward, I want to: receive missing value handling suggestions for each column, So that: I can apply appropriate imputation or deletion strategies
   - **Acceptance Criteria:**
-    - [ ] Preview shows first/last N rows
-Columns inferred with types
-Missing values count per column
-Sample of 100 rows or less
-Loading time under 2 seconds for typical file sizes
-- [ ] **Auto-clean Suggestions** - (M): As a: data steward, I want to: receive automatic cleaning suggestions (trim whitespace, handle nulls, deduplicate), So that: I can apply quality improvements quickly
-  - **Acceptance Criteria:**
-    - [ ] Suggestions include whitespace trimming, null handling, and deduplication
-One-click apply of suggestions
-Preview changes before applying
-No data loss during cleaning steps
-- [ ] **Column Mapping** - (M): As a: data engineer, I want to: map source columns to target schema (rename, type casting), So that: I can align data for downstream processes
-  - **Acceptance Criteria:**
-    - [ ] User can map any column to a new name
-Type casting rules are applied where specified
-Validation ensures no required columns are dropped
-Mappings persist for session or save to profile
-- [ ] **Validate Types** - (M): As a: data scientist, I want to: validate column data types against schema (numeric, date, categorical), So that: I can ensure model-ready or analysis-ready data
-  - **Acceptance Criteria:**
-    - [ ] Types validated per column
-Mismatched types flagged with actionable errors
-Option to coerce types with user confirmation
-Audit trail of changes for traceability
-- [ ] **Show Errors** - (S): As a: user, I want to: surface errors encountered during upload/cleaning, So that: I can quickly identify and fix issues
-  - **Acceptance Criteria:**
-    - [ ] Error messages contextual and actionable
-Errors categorized by stage (upload/cleaning)
-Retry options after fixes
-Error logging to persistent store
-- [ ] **Memory Optimization** - (L): As a: system administrator, I want to: optimize memory usage during upload and cleaning (chunk processing, garbage collection), So that: I can handle large datasets efficiently
-  - **Acceptance Criteria:**
-    - [ ] Process data in chunks
-Garbage collection triggered appropriately
-Peak memory usage within defined limit
-Benchmark shows improved throughput
-- [ ] **Auto-Clean Suggestions - AI-driven cleaning recommendations (inScope:true)** - (L): 
-  - **Acceptance Criteria:**
-    - [ ] AI suggests cleaning actions per dataset
-Actions are non-destructive by default with preview
-User can apply suggestions
-Audit trail of applied actions
-Performance acceptable for typical SMB datasets
-- [ ] **Batch Quality Jobs - Run data quality checks for multiple files (inScope:true)** - (L): 
-  - **Acceptance Criteria:**
-    - [ ] Queue batch jobs across multiple files
-Progress tracking and summaries
-Retries for failed jobs
-Results consolidated dashboard
-Resource usage limits and throttling
+    - [ ] For each column, system suggests at least one imputation method (mean/median for numeric, most frequent for categorical)
+User can preview suggested imputations and select preferred method
+System shows expected impact on summary statistics after imputation
+Edge cases: columns with all values missing are handled with a default imputation suggestion
+Audit trail: imputations applied are logged with timestamp and user
+complexity
+S
+- [ ] **Standardize Units & Labels (inScope:true)**: 
+- [ ] **Preview & Accept Transformations (inScope:true)**: 
+- [ ] **Save/Load Curation Presets (inScope:true)**: 
+- [ ] **Flag Inconsistent Records (inScope:true)**: 
+- [ ] **Manual Variable Mapping (inScope:true)**: 
+- [ ] **View Variable Glossary Link (inScope:false)**: 
 
-### - [ ] **Milestone 3**: **Analysis dashboard and visualization: statistical analysis, plots, comparison, and batch processing.**
+### - [ ] **Milestone 3**: **Core analysis dashboard and visualization features: descriptive statistics and expanded visualizations.**
 
-- [ ] **Analysis Overview** - (S): As a: data analyst, I want to: view a concise overview of analytics results within the dashboard, So that: I can quickly assess overall performance and trends
+- [ ] **Upload Validation** - (M): As a: data analyst, I want to: upload data files (Excel/CSV) with validation checks, So that: data quality is ensured before analysis.
   - **Acceptance Criteria:**
-    - [ ] The overview aggregates key metrics (e.g., total records, completed analyses) and displays them on the dashboard
-Overview updates in real-time or on refresh with minimal latency
-Users can customize which metrics are visible
-The data source for metrics is validated and secure
-Edge: handles empty datasets gracefully
-- [ ] **Interactive Charts** - (M): As a: data analyst, I want to: interact with charts (hover, filter, zoom) on the dashboard, So that: I can explore data subsets and derive insights
+    - [ ] User can upload Excel and CSV files successfully
+System validates file type and size on upload
+Invalid files are rejected with a clear error message
+Uploaded data passes schema validation (required columns)
+Audit log records for each upload attempt
+- [ ] **Flexible Import** - (L): As a: data analyst, I want to: import data from multiple sources/formats (CSV, Excel, API), So that: analysis can proceed regardless of source system.
   - **Acceptance Criteria:**
-    - [ ] Charts respond to hover with tooltips
-Filters apply to corresponding charts without full page reload
-Zoom/pan functionality works on at least two chart types
-State persists across interactions until user resets
-Edge: maintains performance with large datasets
-- [ ] **Statistical Summary** - (S): As a: data analyst, I want to: generate a statistical summary panel (means, medians, quartiles, std dev) for the current dataset, So that: I can quickly understand distribution and central tendencies
+    - [ ] Supports CSV, Excel import
+API data fetch with basic auth optional
+Error handling for source unavailability
+Data mapping and type inference on import
+Logs import activity
+- [ ] **Advanced Visuals** - (L): As a: data viz specialist, I want to: add advanced visualizations (interactive plots, heatmaps), So that: users explore data more effectively.
   - **Acceptance Criteria:**
-    - [ ] Summary includes mean, median, mode, std dev, min/max, quartiles
-Summary updates when dataset changes
+    - [ ] Supports interactive Plotly visuals
+Heatmaps and multi-axis charts
+Performance remains responsive with large datasets
+Exports preserve visuals fidelity
+- [ ] **Error Reporting** - (S): As a: user, I want to: have better error reporting and guidance, So that: issues are diagnosed quickly and correctly.
+  - **Acceptance Criteria:**
+    - [ ] Clear error messages with actionable guidance
+Error logs for debugging
+User-friendly stack traces avoided in UI
+Retry mechanisms for recoverable errors
+- [ ] **Descriptive Expansion** - (M): As a: data scientist, I want to: expand descriptive statistics suite (mean, median, std, quantiles, etc.), So that: users gain deeper insights.
+  - **Acceptance Criteria:**
+    - [ ] Calculates a comprehensive set of descriptive metrics
 Handles missing values gracefully
-Exportable as a CSV/JSON fragment for downstream tools
-Edge: supports optional percentile ranks
-- [ ] **Comparative Analysis** - (M): As a: data analyst, I want to: compare multiple datasets side-by-side within the dashboard, So that: I can identify relative performance and differences
+Results are presented in exportable formats
+Outputs integrate with existing dashboards
+- [ ] **Export Enhancements** - (M): As a: analyst, I want to: enhance export options (Excel/CSV with charts), So that: users share results comprehensively.
   - **Acceptance Criteria:**
-    - [ ] Users can select multiple datasets for comparison
-Comparison view shows aligned metrics and visualizations
-Differing data schemas are normalized for comparison
-Performance remains acceptable with 3+ datasets
-Export of comparison results supported
-- [ ] **Data Quality Flags** - (S): As a: data steward, I want to: see data quality flags (incomplete, inconsistent, outliers) on the dashboard, So that: I can quickly identify issues needing remediation
+    - [ ] Exports include charts and summaries
+Export preserves formatting
+Supports bulk export with progress feedback
+Export targets multiple formats and sheets
+- [ ] **IA Assistant Integration** - (M): As a: user, I want to: integrate IA assistant to guide analysis, So that: users get contextual help and faster insights.
   - **Acceptance Criteria:**
-    - [ ] Flags appear on affected records or aggregates
-Flag definitions are clear and configurable
-Drill-down to problematic records supported
-Automated alerts for critical quality issues
-Edge: integration with data cleaning module for remediation suggestions
-- [ ] **Export Results** - (S): As a: user, I want to: export dashboard results and charts to a file (CSV, Excel, PDF), So that: I can share analyses with stakeholders
+    - [ ] IA assistant prompts contextually
+Guided analysis steps
+Fallback to manual mode
+Performance impact within acceptable thresholds
+- [ ] **Enhanced Plot Types: Add violin and heatmap visualizations with configurable options. inScope:true** - (M): As a: data analyst, I want to: add violin and heatmap visualizations with configurable options, So that: I can explore distributions and correlations more effectively within the visualization module.
   - **Acceptance Criteria:**
-    - [ ] Export button triggers download in selected format
-Export includes visible charts and tables
-Formats preserve styling where possible
-Large datasets handled via chunked export or streaming
-Error handling with user-friendly messages
-- [ ] **Batch Summary** - (S): As a: data analyst, I want to: see a batch run summary (status, progress, results) for batch analyses, So that: I can monitor long-running tasks
+    - [ ] User can add violin plots and heatmaps with configurable parameters (color, axis, grouping)
+Plots render correctly with responsive sizing
+Exporters/filters preserve new plot types
+Validation handles invalid configurations gracefully
+New plots are accessible in UI without breaking existing charts
+- [ ] **Interactive Filters: Allow users to apply multi-select and range filters to visualizations. inScope:true** - (S): As a: data analyst, I want to: allow users to apply multi-select and range filters to visualizations, So that: I can focus on specific data segments directly from charts.
   - **Acceptance Criteria:**
-    - [ ] Batch summary updates in real-time
-Shows progress, ETA, and results
-Ability to pause/resume/cancel batch jobs
-Error handling and retry mechanisms
-Audit trail of batch actions
-- [ ] **Compare Summary** - (S): As a: data analyst, I want to: compare dataset summaries across sources, So that: I can identify discrepancies quickly and decide on data quality actions
+    - [ ] Multi-select filter supports at least 4 categories
+Range filters work across numeric fields with min/max bounds
+Filters update visualizations in real-time
+Filtered data exports respect current filters
+Edge cases with empty selections are handled gracefully
+- [ ] **Export Charts: Enable export of Plotly charts as PNG/SVG and underlying data as CSV. inScope:true** - (M): As a: data analyst, I want to: export charts as PNG/SVG and underlying data as CSV, So that: I can share figures and raw data for reporting.
   - **Acceptance Criteria:**
-    - [ ] User can generate a side-by-side summary comparison for two datasets
-System highlights mismatches in key fields (count, mean, missing values)
-Comparison report can be exported as CSV or PDF
-System handles datasets with different schemas by aligning common fields
-Performance: comparison results return within 5 seconds for datasets up to 1M rows
-- [ ] **Statistical Diff** - (M): As a: data scientist, I want to: compute statistical differences between datasets, So that: I can quantify and validate changes between versions
+    - [ ] Export to PNG/SVG works for all current charts
+Data export CSV includes current view with applied filters
+Export preserves chart styling and labels
+Export fails gracefully with clear message and retry
+Large data exports are streamed without blocking UI
+- [ ] **Format Flex Support: Auto-detect and visualize data from Excel, CSV, and JSON uploads. inScope:true** - (M): As a: data analyst, I want to: auto-detect and visualize data from Excel, CSV, and JSON uploads, So that: I can analyze data from diverse sources without manual formatting.
   - **Acceptance Criteria:**
-    - [ ] Statistical tests (e.g., t-test, KS-test) run on aligned features
-Results include p-values, effect sizes, and confidence intervals
-Edge case handling for non-numeric columns and missing data
-Outputs are exportable and plottable
-Computation completes within reasonable time for typical SMB datasets
-- [ ] **Export Comparison** - (S): As a: analyst, I want to: export the entire comparison results, So that: I can share findings with stakeholders
+    - [ ] Uploads supported for Excel, CSV, JSON formats
+Auto-detection identifies data types and headers
+Appropriate visualizations render based on data shape
+Error messages clear for unsupported formats
+Robust handling of missing values across formats
+- [ ] **Error Feedback: Show clear validation/error messages within visualization panel. inScope:true** - (S): As a: data analyst, I want to: show clear validation/error messages within visualization panel, So that: users understand issues without breaking workflow.
   - **Acceptance Criteria:**
-    - [ ] Export in multiple formats (CSV, Excel, PDF)
-Preserve formatting and legends in exports
-Includes metadata about datasets and comparison parameters
-Handles large exports efficiently (streaming or chunked)
-Validation: exported file matches in-app results
-- [ ] **Visual Diff** - (S): As a: product analyst, I want to: render visual diff between datasets, So that: I can quickly spot differences via charts and overlays
-  - **Acceptance Criteria:**
-    - [ ] Interactive visual diffs (overlays, delta plots) render for numeric features
-Non-numeric features are summarized with counts and distributions
-Exported visuals maintain fidelity in PDF/PNG exports
-Interaction updates reflected in reports
-Performance: visuals render under 2 seconds for typical SMB sizes
-- [ ] **Batch Upload Processing** - (S): As a: data user, I want to: batch upload multiple files for processing, So that: I can save time and process large datasets efficiently
-  - **Acceptance Criteria:**
-    - [ ] User can select multiple files for batch upload
-System validates file types and sizes before processing
-All uploaded files are queued and processed in the batch without errors
-Progress of batch upload is shown to the user in real time
-Uploaded files are stored securely with unique identifiers
-- [ ] **Batch Cleaning Pipeline** - (M): As a: data engineer, I want to: run a batch cleaning pipeline on uploaded datasets, So that: data quality is improved for downstream analysis
-  - **Acceptance Criteria:**
-    - [ ] Batch cleaning tasks are applied to all files in the batch
-Cleaning rules are configurable per dataset
-Logs of cleaning steps are stored
-Edge cases like missing values are handled gracefully
-Output datasets are saved with metadata about cleaning steps
-- [ ] **Batch Statistical Analysis** - (M): As a: data analyst, I want to: run batch statistical analyses on cleaned data, So that: I can generate insights across multiple datasets
-  - **Acceptance Criteria:**
-    - [ ] Statistical tests execute for each dataset in batch
-Results are aggregated with per-dataset and batch-level summaries
-Errors in individual datasets do not block the batch overall
-Results export to CSV/Excel with clear labeling
-- [ ] **Batch Progress Monitoring** - (XS): As a: project manager, I want to: monitor batch processing progress, So that: I can track throughput and stay informed
-  - **Acceptance Criteria:**
-    - [ ] Real-time progress bars for batch stages
-Per-dataset progress indicators
-Alerts on failures or timeouts
-Historical batch run logs available
-Dashboard widget updates in near real-time
-- [ ] **Batch Export Results** - (S): As a: admin, I want to: export batch results to a shareable file, So that: stakeholders can access consolidated findings
-  - **Acceptance Criteria:**
-    - [ ] Export supports CSV, Excel with formatting
-Includes per-dataset and batch-level summaries
-Export job status is visible to user
-Security permissions enforced for export
-Export file includes audit trail
+    - [ ] Error messages are displayed unobtrusively within chart panels
+Messages describe the issue and suggested corrective action
+Focus remains on the chart with non-blocking behavior
+Errors do not crash the page or lose user state
+Logs capture error details for debugging (with consent)
 
-### - [ ] **Milestone 4**: **AI assistant, reference library, and export features: AI chat integration, Semantic Scholar references, Excel/PDF export, and theme/notifications.**
+### - [ ] **Milestone 4**: **AI assistant enhancements and glossary integration for user guidance and domain definitions.**
 
-- [ ] **Conversation Context Persistence (inScope:true)** - (M): As a: AI assistant user, I want to: maintain conversation context across interactions, So that: I can have coherent multi-turn conversations without repeating context
+- [ ] **Expanded Analyses** - (M): As a: data analyst, I want to: expand analytical capabilities and generate deeper insights, So that: I can provide richer findings for stakeholders
   - **Acceptance Criteria:**
-    - [ ] User can initiate a chat session and have context preserved for at least 10 turns
-Context data is stored securely with proper encryption
-System restores previous context after page refresh or session resume
-No leakage of context between concurrent sessions
-Audit log records context persistence events
-- [ ] **Error Handling & Retry UX (inScope:true)** - (M): As a: AI assistant user, I want to: gracefully handle AI errors and allow retry, So that: I can recover from failed responses without losing context
+    - [ ] User can run expanded analyses with new parameter options
+Results include expanded metrics and visuals
+System handles larger datasets without error
+Analyses preserve existing outputs for compatibility
+Error handling for invalid parameters is robust
+- [ ] **Advanced Visualizations** - (L): As a: user, I want to: access advanced visualizations (interactive plots, multi-series dashboards), So that: I can explore data more effectively
   - **Acceptance Criteria:**
-    - [ ] Error toast or banner explains issue clearly
-Retry option re-sends last user input
-Context preserved on retry
-Telemetry logs capture error reasons and outcomes
-Fallback response provided after repeated failures
-- [ ] **Prompt Templates & Guidelines (inScope:true)** - (S): As a: AI assistant user, I want to: access predefined prompt templates and guidelines, So that: I can craft effective prompts and get better responses
+    - [ ] Interactive plots render correctly
+Multiple series can be compared on a single chart
+Export of visuals to PNG/PDF works
+Dashboard layout remains responsive
+Performance under larger datasets is acceptable
+- [ ] **Export Improvements** - (M): As a: data manager, I want to: export results with configurable formats and metadata, So that: I can share findings in preferred formats
   - **Acceptance Criteria:**
-    - [ ] Templates are accessible from UI with category tagging
-Templates validate before sending to AI model
-User can customize/save templates
-Templates affect response quality and are logged for analytics
-Edge case: missing template selection defaults to a generic prompt
-- [ ] **Usage Limits & Quotas Display (inScope:true)** - (S): As a: AI assistant user, I want to: see my usage limits and remaining quotas, So that: I can manage expectations and plan usage
+    - [ ] Export supports CSV/Excel with metadata
+Exports include data validation status
+Export performance is acceptable for large datasets
+Export includes option to filter/transform data before export
+Security: sensitive columns can be masked or excluded
+- [ ] **IA Assistant Enhancements** - (M): As a: user, I want to: use an enhanced AI assistant with better context retention and paraphrasing capabilities, So that: I can get more accurate and concise guidance
   - **Acceptance Criteria:**
-    - [ ] Display current quotas in UI
-Real-time or near real-time update of usage
-Alerts when near limits
-Accurate per-user quota tracking and audit trail
-- [ ] **Export Chat Transcript (inScope:true)** - (M): As a: AI assistant user, I want to: export chat transcripts to a downloadable file, So that: I can share or archive conversations
+    - [ ] Assistant retains context across interactions
+Paraphrasing is accurate with reduced repetition
+User can trigger summaries and action items
+Latency remains within acceptable bounds
+Fails gracefully with clear messages when context is lost
+- [ ] **Curadoria Workflow** - (M): As a: user, I want to: curate data assets and variables within the workflow, So that: I can ensure data quality and relevance for analyses
   - **Acceptance Criteria:**
-    - [ ] Transcript export supports PDF/TXT/CSV
-Includes timestamps and model responses
-Export respects privacy/data masking rules
-User can choose date range and export all/all visible messages
-Export progress indicator and success confirmation
-- [ ] **Search Semantic Scholar** - (S): As a: Researcher, I want to: Search Semantic Scholar, So that: I can locate relevant references quickly and build a bibliography
+    - [ ] Workflow can add/edit/remove variables
+Validation rules apply to curated data
+Audit trail of changes
+User sees impact of curations on results
+Exported datasets reflect curated state
+- [ ] **Glossary UI** - (S): As a: user, I want to: access a glossary of terms within the UI, So that: I can understand domain terminology without leaving the app
   - **Acceptance Criteria:**
-    - [ ] User can search Semantic Scholar by keyword
-Results load within 2 seconds
-At least 5 relevant results per query
-Duplicate results are filtered
-System handles API rate limiting gracefully
-- [ ] **Save Citation** - (M): As a: Researcher, I want to: Save a citation, So that: I can curate a personal bibliography
+    - [ ] Glossary search and filter works
+Terms link to definitions
+Glossary adapts to context within AI assistant
+Performance impact is minimal
+- [ ] **Add Glossary Entry (admin)** - (M): As a: admin, I want to: add glossary term with definition and example, So that: I can enrich the glossary for user reference
   - **Acceptance Criteria:**
-    - [ ] User can save a citation to a personal library
-Saved citations persist across sessions
-UI shows saved status on reference list
-Can remove saved citations
-Data stored securely in database
-- [ ] **Export ABNT Citation** - (M): As a: Researcher, I want to: Export ABNT citation, So that: I can include properly formatted references in documents
+    - [ ] Admin can input term, definition, and example
+Validation prevents empty fields and duplicates
+New entry appears in glossary listing promptly
+Audit trail of added entries
+Permission check ensures only admins can add
+- [ ] **InScope: Enhanced Glossary Import** - (L): As a: admin, I want to: import glossary entries from a file, So that: I can bulk populate glossary
   - **Acceptance Criteria:**
-    - [ ] ABNT formatted export available
-Export supports multiple references
-Incorrect formatting handled with warnings
-Export file downloadable
-Locale handling for ABNT rules
-- [ ] **Bulk Import References** - (L): As a: Researcher, I want to: Bulk import references, So that: I can rapidly ingest large collections
+    - [ ] Admin can upload file (CSV/Excel)
+System validates file structure and required fields
+Imports sequentially with rollback on error
+Duplicate detection and merge strategy
+Audit log of imports
+- [ ] **Search Term** - (S): As a: user, I want to: search glossary terms, So that: I can quickly find definitions
   - **Acceptance Criteria:**
-    - [ ] Users can upload common formats (RIS, BibTeX, EndNote)
-Parsing errors reported with actionable messages
-Progress indicator during import
-Imported references appear in library
-Duplicates are detected and handled gracefully
-- [ ] **InScope: Integrate AI Summaries** - (L): As a: Researcher, I want to: Integrate AI summaries, So that: I can quickly grasp key points of references
+    - [ ] Search field filters terms in real-time
+Results show matching term and definition
+No results shows friendly message
+Search handles special characters
+Performance acceptable for large glossaries
+- [ ] **Export Glossary** - (M): As a: user, I want to: export glossary to Excel/CSV, So that: I can use definitions offline
   - **Acceptance Criteria:**
-    - [ ] AI-generated summaries displayed with references
-Summaries can be expanded/collapsed
-Quality of AI summaries validated
-User can opt-out of AI summaries
-System handles API quotas gracefully
-- [ ] **Reference Details View** - (S): As a: Researcher, I want to: View reference details, So that: I can inspect metadata before deciding to cite
+    - [ ] Export creates downloadable file in Excel/CSV
+Includes term, definition, and example fields
+Export respects current filter/search if applied
+Export handles large glossaries without crashing
+File is saved with meaningful name and timestamp
+- [ ] **View Glossary** - (XS): As a: user, I want to: view glossary entries, So that: I can understand domain terms when analyzing data
   - **Acceptance Criteria:**
-    - [ ] Detail view shows title authors year venue DOI URL
-Pagination or lazy loading for long lists
-Edit capability for notes
-Copy citation feature
-Responsive UI
-- [ ] **Reference Tagging** - (M): As a: Researcher, I want to: Tag references, So that: I can organize and filter references by topics
+    - [ ] User can view a list of glossary terms
+Glossary loads within 2 seconds
+Entries display term, definition, and example where available
+System handles empty glossary gracefully
+Data is retrieved from new glossary service implemented in this scope
+
+### - [ ] **Milestone 5**: **Exporting results, reports and ROI calculators; result presentation and export to Excel.**
+
+- [ ] **Export CSV** - (S): As a: data analyst, I want to: export the current dataset to a CSV file, So that: I can share results with stakeholders in a portable format
   - **Acceptance Criteria:**
-    - [ ] User can apply multiple tags
-Tags persist across sessions
-Filter by tag returns relevant results
-Untag/reference tagging deletion works
-Tags are stored efficiently in database
+    - [ ] User can export data to CSV with default delimiter comma
+Export selects all visible columns by default and allows column selection
+Exported CSV includes header row and data rows accurately
+System validates data integrity during export (no NaN corruption)
+Exported file is downloadable within 5 seconds on moderate data sizes
+- [ ] **Include Visuals** - (M): As a: data analyst, I want to: include visuals in the export, So that: I can share charts alongside data for better interpretation
+  - **Acceptance Criteria:**
+    - [ ] Export package includes charts as images or embedded visuals
+Export supports multiple formats (CSV with visuals or zipped package)
+Visuals correspond to selected data variables and timeframes
+Export integrity checks ensure image/visual data is not corrupted
+UI indicates which visuals are included in the export
+- [ ] **Select Variables** - (XS): As a: data analyst, I want to: select variables to include in export, So that: I can control which data is exported for relevance and size
+  - **Acceptance Criteria:**
+    - [ ] User can toggle variables to include/exclude
+Selected variables persist for the session
+Export respects the current variable selection when generating CSV
+Validation prevents selecting more than available variables
+UI provides search and filter for variables
+- [ ] **Export Metadata** - (S): As a: data analyst, I want to: export metadata about the dataset and export process, So that: I can document provenance and data lineage
+  - **Acceptance Criteria:**
+    - [ ] Metadata includes dataset schema, data sources, variable descriptions
+Export log records timestamp and user action
+Exported metadata is in a standard format (JSON or YAML)
+Metadata file accompanies the main export
+System ensures metadata is consistent with exported data

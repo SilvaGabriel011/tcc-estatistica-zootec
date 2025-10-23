@@ -179,6 +179,9 @@ with tab4:
 		# Conversão alimentar
 		conversao_alimentar = consumo_diario / (gmd / 1000) if gmd > 0 else 0
 		
+		# Armazenar na sessão para uso posterior
+		st.session_state['conversao_alimentar'] = conversao_alimentar
+		
 		# Eficiência alimentar
 		eficiencia_alimentar = (gmd / 1000) / consumo_diario * 100 if consumo_diario > 0 else 0
 		
@@ -319,7 +322,9 @@ with tab5:
 		if taxa_prenhez < 80:
 			st.info('🔬 **Reprodução**: Considere melhorar manejo reprodutivo e nutrição das matrizes.')
 		
-		if conversao_alimentar > 8:
+		# Conversão alimentar só está disponível se os índices zootécnicos foram calculados
+		# Verificar se existe na sessão
+		if 'conversao_alimentar' in st.session_state and st.session_state['conversao_alimentar'] > 8:
 			st.info('🌱 **Nutrição**: Otimize a qualidade da alimentação para melhorar conversão.')
 		
 		if roi_producao < 10:

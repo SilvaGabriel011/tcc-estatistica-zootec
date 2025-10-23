@@ -5,7 +5,10 @@ import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('Agg')
 import plotly.graph_objects as go
+import plotly.express as px
 from scipy.stats import norm
+import pandas as pd
+import streamlit as st
 
 os.makedirs('output/figuras', exist_ok=True)
 
@@ -125,16 +128,273 @@ def agio_by_year(df, output_path='output/figuras/fig_mean_agio_pct_ano.png'):
     fig.add_hline(y=0, line_dash="dash", line_color="gray", opacity=0.5)
     return fig
 
+def create_scatter_plot(df, x_col, y_col, title=None):
+    """Cria gráfico de dispersão para variáveis quantitativas."""
+    if x_col not in df.columns or y_col not in df.columns:
+        return None
+    
+    import plotly.express as px
+    
+    df_clean = df[[x_col, y_col]].dropna()
+    if len(df_clean) == 0:
+        return None
+    
+    fig = px.scatter(
+        df_clean,
+        x=x_col,
+        y=y_col,
+        title=title or f'Dispersão: {x_col} vs {y_col}',
+        labels={x_col: x_col, y_col: y_col}
+    )
+    
+    fig.update_layout(height=500)
+    return fig
+
+def create_pie_chart(df, column, title=None):
+    """Cria gráfico de pizza para variáveis categóricas."""
+    if column not in df.columns:
+        return None
+    
+    import plotly.express as px
+    
+    # Contar frequências
+    value_counts = df[column].value_counts()
+    
+    if len(value_counts) == 0:
+        return None
+    
+    fig = px.pie(
+        values=value_counts.values,
+        names=value_counts.index,
+        title=title or f'Distribuição de {column}'
+    )
+    
+    fig.update_layout(height=500)
+    return fig
+
+def create_line_chart(df, x_col, y_col, title=None):
+    """Cria gráfico de linha para tendências temporais."""
+    if x_col not in df.columns or y_col not in df.columns:
+        return None
+    
+    import plotly.express as px
+    
+    # Agrupar por x_col e calcular média de y_col
+    trend_data = df.groupby(x_col)[y_col].agg(['mean', 'count']).reset_index()
+    trend_data = trend_data[trend_data['count'] >= 2]  # Mínimo 2 registros
+    
+    if len(trend_data) < 2:
+        return None
+    
+    fig = px.line(
+        trend_data,
+        x=x_col,
+        y='mean',
+        title=title or f'Tendência de {y_col} por {x_col}',
+        labels={'mean': f'Média de {y_col}', x_col: x_col},
+        markers=True
+    )
+    
+    fig.update_layout(height=500)
+    return fig
+
+def create_column_chart(df, x_col, y_col, title=None):
+    """Cria gráfico de colunas para comparações."""
+    if x_col not in df.columns or y_col not in df.columns:
+        return None
+    
+    import plotly.express as px
+    
+    # Calcular estatísticas por grupo
+    group_stats = df.groupby(x_col)[y_col].agg(['mean', 'count']).reset_index()
+    group_stats = group_stats[group_stats['count'] >= 2]
+    
+    if len(group_stats) == 0:
+        return None
+    
+    fig = px.bar(
+        group_stats,
+        x=x_col,
+        y='mean',
+        title=title or f'Comparação de {y_col} por {x_col}',
+        labels={'mean': f'Média de {y_col}', x_col: x_col},
+        color='mean',
+        color_continuous_scale='Viridis'
+    )
+    
+    fig.update_layout(height=500)
+    return fig
+
 def generate_all_plots(df):
+    """Gera todos os gráficos apropriados baseados no tipo de variável."""
     plots = {}
-    if 'PREÇO POR KG' in df.columns:
-        plots['hist'] = hist_with_normal(df['PREÇO POR KG'])
-    if 'RAÇA' in df.columns:
-        plots['box_raca'] = box_preco_por_raca(df)
-    if 'TIPO GADO GORDO' in df.columns:
-        plots['box_tipo'] = box_preco_por_tipo(df)
+    
+    # Análise de variáveis quantitativas
+    quantitative_cols = [col for col in df.columns if pd.api.types.is_numeric_dtype(df[col])]
+    categorical_cols = [col for col in df.columns if df[col].dtype == 'object' or df[col].dtype.name == 'category']
+    
+    # Gráficos para variáveis quantitativas
+    for col in quantitative_cols:
+        if col == 'PREÇO POR KG':
+            plots[f'hist_{col}'] = hist_with_normal(df[col])
+        
+        # Boxplots por variáveis categóricas
+        for cat_col in categorical_cols:
+            plots[f'box_{col}_by_{cat_col}'] = box_by(df, cat_col, col)
+        
+        # Gráficos de dispersão entre variáveis quantitativas
+        for other_col in quantitative_cols:
+            if col != other_col:
+                plots[f'scatter_{col}_vs_{other_col}'] = create_scatter_plot(df, col, other_col)
+    
+    # Gráficos para variáveis categóricas
+    for col in categorical_cols:
+        # Gráfico de pizza
+        plots[f'pie_{col}'] = create_pie_chart(df, col)
+        
+        # Gráfico de colunas se houver variável quantitativa
+        if quantitative_cols:
+            y_col = quantitative_cols[0]  # Usar primeira variável quantitativa
+            plots[f'column_{y_col}_by_{col}'] = create_column_chart(df, col, y_col)
+    
+    # Gráficos temporais se houver coluna de ano
     if 'ANO' in df.columns:
-        plots['trend'] = trend_by_year(df)
-        if '% ÁGIO' in df.columns:
-            plots['agio'] = agio_by_year(df)
+        for col in quantitative_cols:
+            plots[f'line_{col}_by_year'] = create_line_chart(df, 'ANO', col)
+    
+    return plots
+
+# Funções aprimoradas de visualização
+def create_enhanced_visualizations(df: pd.DataFrame, plot_types: list = None) -> dict:
+    """Cria visualizações aprimoradas baseadas nos tipos de dados."""
+    if plot_types is None:
+        plot_types = ['heatmap', 'violin_plot', 'scatter_matrix', 'sunburst']
+    
+    plots = {}
+    
+    try:
+        # Importar EnhancedPlotter
+        from core.enhanced_plots import EnhancedPlotter
+        plotter = EnhancedPlotter()
+        
+        # Identificar colunas
+        numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+        categorical_cols = df.select_dtypes(include=['object', 'category']).columns.tolist()
+        
+        # Criar visualizações baseadas nos tipos disponíveis
+        for plot_type in plot_types:
+            try:
+                if plot_type == 'heatmap' and len(numeric_cols) >= 2:
+                    plots['heatmap'] = plotter.create_heatmap(
+                        df, columns=numeric_cols, correlation=True
+                    )
+                
+                elif plot_type == 'violin_plot' and categorical_cols and numeric_cols:
+                    # Criar violino para primeira combinação categórica-numérica
+                    cat_col = categorical_cols[0]
+                    num_col = numeric_cols[0]
+                    plots['violin_plot'] = plotter.create_violin_plot(
+                        df, cat_col, num_col
+                    )
+                
+                elif plot_type == 'scatter_matrix' and len(numeric_cols) >= 2:
+                    plots['scatter_matrix'] = plotter.create_scatter_matrix(
+                        df, columns=numeric_cols[:4]
+                    )
+                
+                elif plot_type == 'sunburst' and len(categorical_cols) >= 2:
+                    plots['sunburst'] = plotter.create_sunburst(
+                        df, categorical_cols[:3]
+                    )
+                
+                elif plot_type == 'treemap' and len(categorical_cols) >= 2:
+                    plots['treemap'] = plotter.create_treemap(
+                        df, categorical_cols[:2]
+                    )
+                
+                elif plot_type == '3d_scatter' and len(numeric_cols) >= 3:
+                    plots['3d_scatter'] = plotter.create_3d_scatter(
+                        df, numeric_cols[0], numeric_cols[1], numeric_cols[2]
+                    )
+                
+            except Exception as e:
+                st.warning(f"Não foi possível criar {plot_type}: {str(e)}")
+                continue
+        
+        return plots
+        
+    except ImportError:
+        st.warning("Módulo enhanced_plots não disponível. Usando visualizações básicas.")
+        return generate_all_plots(df)
+    except Exception as e:
+        st.error(f"Erro ao criar visualizações aprimoradas: {str(e)}")
+        return generate_all_plots(df)
+
+def get_visualization_recommendations(df: pd.DataFrame) -> dict:
+    """Retorna recomendações de visualizações baseadas nos dados."""
+    numeric_cols = df.select_dtypes(include=[np.number]).columns.tolist()
+    categorical_cols = df.select_dtypes(include=['object', 'category']).columns.tolist()
+    
+    recommendations = {
+        'basic': [],
+        'advanced': [],
+        'multivariate': [],
+        'hierarchical': []
+    }
+    
+    # Recomendações básicas
+    if numeric_cols:
+        recommendations['basic'].append('histogram')
+        recommendations['basic'].append('boxplot')
+    
+    if categorical_cols:
+        recommendations['basic'].append('bar_chart')
+        recommendations['basic'].append('pie_chart')
+    
+    # Recomendações avançadas
+    if len(numeric_cols) >= 2:
+        recommendations['advanced'].append('heatmap')
+        recommendations['advanced'].append('scatter_matrix')
+    
+    if len(numeric_cols) >= 3:
+        recommendations['advanced'].append('3d_scatter')
+        recommendations['advanced'].append('parallel_coordinates')
+    
+    # Recomendações multivariadas
+    if numeric_cols and categorical_cols:
+        recommendations['multivariate'].append('violin_plot')
+        recommendations['multivariate'].append('box_by_category')
+    
+    # Recomendações hierárquicas
+    if len(categorical_cols) >= 2:
+        recommendations['hierarchical'].append('sunburst')
+        recommendations['hierarchical'].append('treemap')
+    
+    return recommendations
+
+def export_plot_as_image(fig, format='png', width=800, height=600):
+    """Exporta gráfico Plotly como imagem."""
+    try:
+        import base64
+        img_bytes = fig.to_image(format=format, width=width, height=height)
+        img_base64 = base64.b64encode(img_bytes).decode()
+        return img_base64
+    except Exception as e:
+        st.error(f"Erro ao exportar gráfico: {str(e)}")
+        return None
+
+def create_plot_gallery(df: pd.DataFrame) -> dict:
+    """Cria galeria de gráficos com todas as visualizações disponíveis."""
+    plots = {}
+    
+    # Gráficos básicos
+    plots.update(generate_all_plots(df))
+    
+    # Gráficos aprimorados
+    try:
+        enhanced_plots = create_enhanced_visualizations(df)
+        plots.update(enhanced_plots)
+    except Exception as e:
+        st.warning(f"Alguns gráficos aprimorados não puderam ser criados: {str(e)}")
+    
     return plots
